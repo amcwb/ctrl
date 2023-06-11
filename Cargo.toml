@@ -2,7 +2,18 @@
 name = "ctrl"
 version = "0.1.0"
 edition = "2021"
+authors = ["amcwb"]
 
 # See more keys and their definitions at https://doc.rust-lang.org/cargo/reference/manifest.html
 
 [dependencies]
+octocrab = "0.25.1"
+reqwest = { version = "0.11", features = ["json", "rustls"] }
+serde = { version = "1.0", features = ["derive"] }
+tokio = { version = "1.17.0", features = ["full"] }
+toml = "0.7.4"
+indoc = "2"
+
+[dependencies.rocket]
+version = "0.5.0-rc.1"
+features = ["json"]
