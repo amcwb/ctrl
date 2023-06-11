@@ -1,5 +1,6 @@
 #![feature(proc_macro_hygiene, decl_macro)]
-#[macro_use] extern crate rocket;
+#[macro_use]
+extern crate rocket;
 extern crate reqwest;
 extern crate serde;
 extern crate toml;
@@ -7,16 +8,24 @@ extern crate toml;
 use config::read_manifest;
 use rocket::form::Form;
 use rocket::http::Status;
+use rocket::serde::json::Value;
 use serde::Serialize;
 use slack::command_handler;
 
-mod slack;
 mod config;
+mod slack;
 
-#[derive(Serialize)]
-struct Response {
-    text: String,
-    response_type: String,
+#[derive(Serialize, Debug)]
+#[serde(untagged)]
+pub enum Response {
+    TextResponse {
+        text: String,
+        response_type: String,
+    },
+    BlockResponse {
+        blocks: Vec<Value>,
+        response_type: String,
+    },
 }
 
 #[derive(FromForm, Clone)]
@@ -37,8 +46,19 @@ pub struct Parameters {
     pub api_app_id: String,
 }
 
-#[post("/", data = "<input>")]
-async fn command(input: Form<Parameters>) -> Status {
+#[post("/slack", data = "<input>")]
+async fn slack_command(input: Form<Parameters>) -> Status {
+    // Unwrap inner object.
+    let input_inner = input.into_inner();
+
+    command_handler(input_inner);
+
+    // Return data, respond in background
+    Status::Accepted
+}
+
+#[post("/github", data = "<input>")]
+async fn github_command(input: Form<Parameters>) -> Status {
     // Unwrap inner object.
     let input_inner = input.into_inner();
 
@@ -60,5 +80,9 @@ async fn main() {
     read_manifest();
 
     // Initialise Rocket, mount root route and register 404 catcher.
-    let _ = rocket::build().mount("/", routes![command]).register("/", catchers![not_found]).launch().await;
+    let _ = rocket::build()
+        .mount("/", routes![github_command, slack_command])
+        .register("/", catchers![not_found])
+        .launch()
+        .await;
 }
