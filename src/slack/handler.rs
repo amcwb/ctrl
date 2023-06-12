@@ -13,7 +13,7 @@ use slack_rust::{
     socket::socket_mode::SocketMode,
 };
 
-use crate::config::{get_user_by_github_username, get_user_by_slack_id, set_user_github_username};
+use crate::config::{get_user_by_github_username, get_user_by_slack_id, set_user_github_username, get_slack_by_github_username};
 
 async fn respond_text<S: SlackWebAPIClient>(
     socket_mode: &SocketMode<S>,
@@ -97,6 +97,7 @@ pub async fn help<S: SlackWebAPIClient>(socket_mode: &SocketMode<S>, channel_id:
  
             - /ctrl help: Show this help guide.
             - /ctrl list: List all projects.
+            - /ctrl project: Show information about the current channel's project.
             - /ctrl create <project_name>: Create a new project, automatically assigning it to this channel and adding you as a manager.
             - /ctrl add <@user>: Add a user as a manager to this project
             - /ctrl remove <@user>: Remove a user as a manager from this project
@@ -418,4 +419,50 @@ pub async fn me<S: SlackWebAPIClient>(
             command_not_found(socket_mode, channel_id).await;
         }
     }
+}
+
+pub async fn project<S: SlackWebAPIClient>(
+    socket_mode: &SocketMode<S>,
+    channel_id: &String,
+    project_name: &String,
+) {
+    let manifest = crate::config::read_manifest();
+
+    if !manifest.projects.contains_key(project_name) {
+        let _ = respond_text(
+            socket_mode,
+            channel_id,
+            format!("Project `{}` does not exist.", project_name),
+        );
+        return;
+    }
+
+    let project = manifest.projects.get(project_name).unwrap();
+
+    let mut text = format!("*Project*: `{}`\n", project_name);
+
+    if let Some(ref github_repo) = project.github_repo {
+        text.push_str(&format!("*GitHub*: <https://github.com/{}|{}>\n", github_repo, github_repo));
+    }
+
+    text.push_str("*Managers*:\n");
+    
+    for manager in &project.project_owners {
+        let slack_id = get_slack_by_github_username(&manifest, manager);
+        let user = get_user_by_github_username(&manifest, manager);
+
+        if user.is_none() || slack_id.is_none() {
+            continue;
+        }
+
+        let user = user.unwrap();
+
+        text.push_str(&format!("<@{}> ({})\n", slack_id.unwrap(), user.github_username));
+    }
+
+    let _ = respond_text(
+        socket_mode,
+        channel_id,
+        text,
+    ).await;
 }

@@ -117,6 +117,14 @@ where
                 )
                 .await
             },
+            "project" => {
+                handler::project(
+                    socket_mode,
+                    &channel_id,
+                    &project.to_string(),
+                )
+                .await
+            },
             _ => handler::command_not_found(socket_mode, &channel_id).await,
         }
     }
