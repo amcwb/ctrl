@@ -1,6 +1,9 @@
 use itertools::Itertools;
 
-use crate::config::get_project_by_github_repo;
+use crate::{
+    config::{get_project_by_github_repo, get_slack_by_github_username},
+    slack::handler::respond_http_text,
+};
 
 pub async fn handle_pull_request(input: ::rocket::serde::json::Value) {
     let action = input["action"].as_str().unwrap();
@@ -90,6 +93,22 @@ pub async fn handle_pull_request(input: ::rocket::serde::json::Value) {
                 )
                 .await;
 
+            let formatted_reviewers = reviewers
+                .clone()
+                .into_iter()
+                .map(|f| format!("@{}", f))
+                .collect::<Vec<String>>()
+                .join(", ");
+            let slack_reviewers = reviewers
+                .clone()
+                .into_iter()
+                .map(|f| match get_slack_by_github_username(&manifest, &f) {
+                    Some(slack) => format!("<@{}>", slack),
+                    None => format!("@{}", f),
+                })
+                .collect::<Vec<String>>()
+                .join(" ");
+
             if reviewed.is_ok() {
                 issue_handler
                     .create_comment(
@@ -97,11 +116,22 @@ pub async fn handle_pull_request(input: ::rocket::serde::json::Value) {
                         format!(
                             "Thanks @{}. Reviews have been requested from the following project managers: {} 😊",
                             pull_request["user"]["login"].as_str().unwrap(),
-                            reviewers.clone().into_iter().map(|f| format!("@{}", f)).collect::<Vec<String>>().join(", ")
+                            formatted_reviewers
                         ),
                     )
                     .await
                     .expect("Failed to create comment");
+
+                // Notify slack
+                let _ = respond_http_text(
+                    &project.slack_channel,
+                    format!(
+                        "A new <https://github.com/{repo}/pull/{num}|PR> has been requested on <https://github.com/{repo}|{repo}> and reviews have been requested from {reviewers}. 😊",
+                        repo=repo,
+                        num=pull_request["number"].as_u64().unwrap(),
+                        reviewers=slack_reviewers
+                    )
+                ).await;
             } else {
                 println!("{}", reviewed.err().unwrap());
                 issue_handler
@@ -115,6 +145,16 @@ pub async fn handle_pull_request(input: ::rocket::serde::json::Value) {
                     )
                     .await
                     .expect("Failed to create comment");
+
+                // Notify slack
+                let _ = respond_http_text(
+                    &project.slack_channel,
+                    format!(
+                        "A new <https://github.com/{repo}/pull/{num}|PR> has been requested on <https://github.com/{repo}|{repo}> but I was unable to automatically assign reviewers.",
+                        repo=repo,
+                        num=pull_request["number"].as_u64().unwrap(),
+                    )
+                ).await;
             }
         }
         _ => (),
@@ -188,29 +228,50 @@ pub async fn handle_pull_request_review(input: ::rocket::serde::json::Value) {
                         .expect("Failed to merge PR");
 
                     issue_handler
-                    .create_comment(
-                        pull_request["number"].as_u64().unwrap(),
+                        .create_comment(
+                            pull_request["number"].as_u64().unwrap(),
+                            format!(
+                                "Thanks @{} for reviewing. This will now be automatically merged into {} 😊",
+                                review["user"]["login"].as_str().unwrap(),
+                                pull_request["base"]["ref"].as_str().unwrap()
+                            ),
+                        )
+                        .await
+                        .expect("Failed to create comment");
+
+                    // Notify slack
+                    let _ = respond_http_text(
+                        &project.slack_channel,
                         format!(
-                            "Thanks @{} for reviewing. This will now be automatically merged into {} 😊",
-                            review["user"]["login"].as_str().unwrap(),
-                            pull_request["base"]["ref"].as_str().unwrap()
-                        ),
-                    )
-                    .await
-                    .expect("Failed to create comment");
+                            "A <https://github.com/{repo}/pull/{num}|PR> has been approved on <https://github.com/{repo}|{repo}> and will be automatically merged into {branch}. 😊",
+                            repo=repo,
+                            num=pull_request["number"].as_u64().unwrap(),
+                            branch=pull_request["base"]["ref"].as_str().unwrap()
+                        )
+                    ).await;
                 }
                 "changes_requested" => {
                     issue_handler
-                    .create_comment(
-                        pull_request["number"].as_u64().unwrap(),
+                        .create_comment(
+                            pull_request["number"].as_u64().unwrap(),
+                            format!(
+                                "Thanks @{} for reviewing. @{}, make sure these changes are made and a review is requested 😄",
+                                review["user"]["login"].as_str().unwrap(),
+                                pull_request["user"]["login"].as_str().unwrap()
+                            ),
+                        )
+                        .await
+                        .expect("Failed to create comment");
+
+                    // Notify slack
+                    let _ = respond_http_text(
+                        &project.slack_channel,
                         format!(
-                            "Thanks @{} for reviewing. @{}, make sure these changes are made and a review is requested 😄",
-                            review["user"]["login"].as_str().unwrap(),
-                            pull_request["user"]["login"].as_str().unwrap()
-                        ),
-                    )
-                    .await
-                    .expect("Failed to create comment");
+                            "A <https://github.com/{repo}/pull/{num}|PR> has had changes requested on <https://github.com/{repo}|{repo}> and will need to be updated. 😊",
+                            repo=repo,
+                            num=pull_request["number"].as_u64().unwrap(),
+                        )
+                    ).await;
                 }
                 _ => (),
             }

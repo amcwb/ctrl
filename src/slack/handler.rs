@@ -1,3 +1,5 @@
+use std::env;
+
 use indoc::indoc;
 use rocket::serde::json::serde_json;
 use slack_rust::{
@@ -9,11 +11,35 @@ use slack_rust::{
         blocks::Block,
     },
     chat::post_message::{post_message, PostMessageRequest, PostMessageResponse},
-    http_client::SlackWebAPIClient,
+    http_client::{SlackWebAPIClient, default_client},
     socket::socket_mode::SocketMode,
 };
 
 use crate::config::{get_user_by_github_username, get_user_by_slack_id, set_user_github_username, get_slack_by_github_username};
+
+pub async fn respond_http_text(
+    channel_id: &String,
+    text: String,
+) -> Result<PostMessageResponse, slack_rust::error::Error> {
+    let slack_bot_token = env::var("SLACK_BOT_TOKEN").expect("slack bot token is not set.");
+    let request = PostMessageRequest::builder(channel_id.clone())
+        .text(text.clone())
+        .build();
+
+    post_message(&default_client(), &request, &slack_bot_token).await
+}
+
+pub async fn respond_http_blocks(
+    channel_id: &String,
+    blocks: Vec<Block>,
+) -> Result<PostMessageResponse, slack_rust::error::Error> {
+    let slack_bot_token = env::var("SLACK_BOT_TOKEN").expect("slack bot token is not set.");
+    let request = PostMessageRequest::builder(channel_id.clone())
+        .blocks(blocks)
+        .build();
+
+    post_message(&default_client(), &request, &slack_bot_token).await
+}
 
 async fn respond_text<S: SlackWebAPIClient>(
     socket_mode: &SocketMode<S>,

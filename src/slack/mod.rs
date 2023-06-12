@@ -6,10 +6,11 @@ use slack_rust::socket::socket_mode::{ack, EventHandler, SocketMode, Stream};
 use slack_rust::views::open::{open, OpenRequest};
 use slack_rust::views::view::{View, ViewType};
 use std::env;
+use std::sync::Mutex;
 
 use crate::config::{get_project_by_slack_channel, get_project_name_by_slack_channel};
 
-mod handler;
+pub mod handler;
 
 pub async fn start() {
     let slack_app_token = env::var("SLACK_APP_TOKEN").expect("slack app token is not set.");
@@ -17,7 +18,6 @@ pub async fn start() {
     let api_client = default_client();
 
     SocketMode::new(api_client, slack_app_token, slack_bot_token)
-        .option_parameter("SLACK_CHANNEL_ID".to_string(), "channel_id".to_string())
         .run(&mut Handler)
         .await
         .unwrap_or_else(|_| panic!("socket mode run error."));
