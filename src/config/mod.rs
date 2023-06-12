@@ -6,7 +6,7 @@ use std::{
     path::Path,
 };
 
-use git2::{Cred, PushOptions, RemoteCallbacks, Repository};
+use git2::{Cred, PushOptions, RemoteCallbacks, Repository, CredentialType};
 use serde::{Deserialize, Serialize};
 
 #[derive(Serialize, Deserialize, Debug, Clone)]
