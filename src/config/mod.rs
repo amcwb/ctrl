@@ -214,8 +214,16 @@ pub fn push_changes() {
 
         creds
     });
-    
-    let mut remote = repo.find_remote("origin").expect("Remote failed");
+
+    let mut remote = repo
+        .find_remote("origin")
+        .or_else(|_| {
+            repo.remote(
+                "origin",
+                format!("https://github.com/{}", manifest.configured_project).as_str(),
+            )
+        })
+        .expect("Remote failed");
     remote
         .push(
             &["refs/heads/master:refs/heads/master"],
