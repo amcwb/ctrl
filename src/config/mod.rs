@@ -85,6 +85,7 @@ pub fn get_user_by_slack_mention<'a>(
             slack_id.as_str()
                 == slack_mention
                     .trim_start_matches("<@")
+                    .trim_end_matches(">")
                     .split("|")
                     .collect::<Vec<&str>>()[0]
         })

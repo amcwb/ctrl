@@ -15,7 +15,7 @@ use slack_rust::{
     socket::socket_mode::SocketMode,
 };
 
-use crate::config::{get_user_by_github_username, get_user_by_slack_id, set_user_github_username, get_slack_by_github_username};
+use crate::config::{get_user_by_github_username, get_user_by_slack_id, set_user_github_username, get_slack_by_github_username, get_user_by_slack_mention};
 
 pub async fn respond_http_text(
     channel_id: &String,
@@ -296,7 +296,7 @@ pub async fn add<S: SlackWebAPIClient>(
 
     let project = manifest.projects.get_mut(project_name).unwrap();
 
-    let user = get_user_by_slack_id(&manifest_clone, user_id);
+    let user = get_user_by_slack_mention(&manifest_clone, user_id);
 
     if user.is_none() {
         user_not_linked(socket_mode, channel_id).await;
@@ -317,7 +317,7 @@ pub async fn add<S: SlackWebAPIClient>(
         return;
     }
 
-    project.project_owners.push(user_id.clone());
+    project.project_owners.push(user.github_username.clone());
 
     crate::config::write_manifest(&manifest);
 
@@ -352,7 +352,7 @@ pub async fn remove<S: SlackWebAPIClient>(
 
     let project = manifest.projects.get_mut(project_name).unwrap();
 
-    let user = get_user_by_slack_id(&manifest_clone, user_id);
+    let user = get_user_by_slack_mention(&manifest_clone, user_id);
 
     if user.is_none() {
         user_not_linked(socket_mode, channel_id).await;

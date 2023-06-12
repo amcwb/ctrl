@@ -60,13 +60,6 @@ where
         let manifest = crate::config::read_manifest();
         let project = get_project_name_by_slack_channel(&manifest, &channel_id);
 
-        if project.is_none() {
-            handler::project_not_found(socket_mode, &channel_id).await;
-            return;
-        }
-
-        let project = project.unwrap();
-
         let (command, args) = &opts.split_at(1);
         let command = command[0];
 
@@ -76,6 +69,13 @@ where
             "create" => handler::create(socket_mode, &channel_id, &args[0].to_string()).await,
             "delete" => handler::delete(socket_mode, &channel_id, &args[0].to_string()).await,
             "add" => {
+                if project.is_none() {
+                    handler::project_not_found(socket_mode, &channel_id).await;
+                    return;
+                }
+        
+                let project = project.unwrap();
+
                 handler::add(
                     socket_mode,
                     &channel_id,
@@ -85,6 +85,13 @@ where
                 .await
             }
             "remove" => {
+                if project.is_none() {
+                    handler::project_not_found(socket_mode, &channel_id).await;
+                    return;
+                }
+
+                let project = project.unwrap();
+                
                 handler::remove(
                     socket_mode,
                     &channel_id,
@@ -94,6 +101,13 @@ where
                 .await
             }
             "github" => {
+                if project.is_none() {
+                    handler::project_not_found(socket_mode, &channel_id).await;
+                    return;
+                }
+
+                let project = project.unwrap();
+                
                 handler::github(
                     socket_mode,
                     &channel_id,
@@ -118,6 +132,13 @@ where
                 .await
             },
             "project" => {
+                if project.is_none() {
+                    handler::project_not_found(socket_mode, &channel_id).await;
+                    return;
+                }
+
+                let project = project.unwrap();
+                
                 handler::project(
                     socket_mode,
                     &channel_id,
