@@ -66,6 +66,22 @@ pub async fn handle_pull_request(input: ::rocket::serde::json::Value) {
                 .await
                 .expect("Failed to assign user");
 
+            // Do not request if merging into the wrong branch
+            if vec!["master", "main"].contains(&pull_request["base"]["ref"].as_str().unwrap()) {
+                issue_handler
+                    .create_comment(
+                        pull_request["number"].as_u64().unwrap(),
+                        format!(
+                            "Thanks @{}. This PR is being merged into {}, so I will not request reviews in case this is an error.",
+                            pull_request["user"]["login"].as_str().unwrap(),
+                            pull_request["base"]["ref"].as_str().unwrap()
+                        ),
+                    )
+                    .await
+                    .expect("Failed to create comment");
+                return;
+            }
+
             let reviewed = pr_handler
                 .request_reviews(
                     pull_request["number"].as_u64().unwrap(),
@@ -142,6 +158,24 @@ pub async fn handle_pull_request_review(input: ::rocket::serde::json::Value) {
 
             match review["state"].as_str().unwrap() {
                 "approved" => {
+                    // Do not merge if merging into the wrong branch
+                    if vec!["master", "main"]
+                        .contains(&pull_request["base"]["ref"].as_str().unwrap())
+                    {
+                        issue_handler
+                            .create_comment(
+                                pull_request["number"].as_u64().unwrap(),
+                                format!(
+                                    "Thanks @{} for reviewing. This PR is being merged into {}, so I will not merge automatically in case this is an error.",
+                                    review["user"]["login"].as_str().unwrap(),
+                                    pull_request["base"]["ref"].as_str().unwrap()
+                                ),
+                            )
+                            .await
+                            .expect("Failed to create comment");
+                        return;
+                    }
+
                     pr_handler
                         .merge(pull_request["number"].as_u64().unwrap())
                         .message(format!(
@@ -164,7 +198,7 @@ pub async fn handle_pull_request_review(input: ::rocket::serde::json::Value) {
                     )
                     .await
                     .expect("Failed to create comment");
-                },
+                }
                 "changes_requested" => {
                     issue_handler
                     .create_comment(
@@ -178,7 +212,7 @@ pub async fn handle_pull_request_review(input: ::rocket::serde::json::Value) {
                     .await
                     .expect("Failed to create comment");
                 }
-                _ => ()
+                _ => (),
             }
         }
         _ => (),
