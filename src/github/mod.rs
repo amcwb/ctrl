@@ -22,6 +22,7 @@ pub fn github_handler(input: Value, event: crate::github::rocket::GitHubEvent) {
 pub async fn handle_github_event(input: Value, event: crate::github::rocket::GitHubEvent) {
     match event.0.as_str() {
         "pull_request" => prs::handle_pull_request(input).await,
+        "pull_request_review" => prs::handle_pull_request_review(input).await,
         _ => (),
     }
 }

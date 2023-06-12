@@ -1,3 +1,5 @@
+use itertools::Itertools;
+
 use crate::config::get_project_by_github_repo;
 
 pub async fn handle_pull_request(input: ::rocket::serde::json::Value) {
@@ -7,7 +9,7 @@ pub async fn handle_pull_request(input: ::rocket::serde::json::Value) {
     println!("Received GitHub pull request event: {:?}", action);
 
     match action {
-        "reopened" | "opened" => {
+        "reopened" | "opened" | "ready_for_review" => {
             // Find project by GitHub repo and assign users
 
             let manifest = crate::config::read_manifest();
@@ -32,6 +34,18 @@ pub async fn handle_pull_request(input: ::rocket::serde::json::Value) {
             let issue_handler = instance.issues(details[0].clone(), details[1].clone());
             let pr_handler = instance.pulls(details[0].clone(), details[1].clone());
 
+            let contributors = instance
+                .get::<Vec<octocrab::models::Author>, String, ()>(
+                    format!(
+                        "/repos/{}/{}/contributors",
+                        details[0].clone(),
+                        details[1].clone()
+                    ),
+                    None::<&()>,
+                )
+                .await
+                .expect("Failed to get contributors");
+
             // TODO: Clean up this filter
             let reviewers = project
                 .project_owners
@@ -39,14 +53,10 @@ pub async fn handle_pull_request(input: ::rocket::serde::json::Value) {
                 .iter()
                 .chain(manifest.managers.iter())
                 .filter(|f| **f != pull_request["user"]["login"].as_str().unwrap())
+                .filter(|f| contributors.iter().any(|c| c.login == **f))
                 .map(|f| f.to_owned())
+                .unique()
                 .collect::<Vec<String>>();
-
-            println!(
-                "user {}, reviewers {:?}",
-                pull_request["user"]["login"].to_string(),
-                reviewers.clone()
-            );
 
             issue_handler
                 .add_assignees(
@@ -69,7 +79,7 @@ pub async fn handle_pull_request(input: ::rocket::serde::json::Value) {
                     .create_comment(
                         pull_request["number"].as_u64().unwrap(),
                         format!(
-                            "🤖 Thanks @{}. Reviews have been requested from the following project managers: {}",
+                            "Thanks @{}. Reviews have been requested from the following project managers: {} 😊",
                             pull_request["user"]["login"].as_str().unwrap(),
                             reviewers.clone().into_iter().map(|f| format!("@{}", f)).collect::<Vec<String>>().join(", ")
                         ),
@@ -77,11 +87,12 @@ pub async fn handle_pull_request(input: ::rocket::serde::json::Value) {
                     .await
                     .expect("Failed to create comment");
             } else {
+                println!("{}", reviewed.err().unwrap());
                 issue_handler
                     .create_comment(
                         pull_request["number"].as_u64().unwrap(),
                         format!(
-                            "🤖 Thanks @{}. I was unable to automatically assign reviews for this PR. Please add them manually: {}",
+                            "Thanks @{}. I was unable to automatically assign reviews for this PR. Please add them manually: {}. 😇",
                             pull_request["user"]["login"].as_str().unwrap(),
                             reviewers.clone().into_iter().map(|f| format!("@{}", f)).collect::<Vec<String>>().join(", ")
                         ),
@@ -127,19 +138,47 @@ pub async fn handle_pull_request_review(input: ::rocket::serde::json::Value) {
             let issue_handler = instance.issues(details[0].clone(), details[1].clone());
             let pr_handler = instance.pulls(details[0].clone(), details[1].clone());
 
-            if review["state"].as_str().unwrap() == "SUBMITTED" {
-                pr_handler
-                    .merge(pull_request["number"].as_u64().unwrap())
-                    .message(format!(
-                        "Merge branch {} into {}.\n\n🤖 Approved by {} and automatically merged.",
-                        pull_request["head"]["ref"].as_str().unwrap(),
-                        pull_request["base"]["ref"].as_str().unwrap(),
-                        review["user"]["login"].as_str().unwrap()
+            println!("Review state: {}", review["state"].as_str().unwrap());
 
-                    ))
-                    .send()
+            match review["state"].as_str().unwrap() {
+                "approved" => {
+                    pr_handler
+                        .merge(pull_request["number"].as_u64().unwrap())
+                        .message(format!(
+                            "🤖 Approved by {} and automatically merged on #{}.",
+                            review["user"]["login"].as_str().unwrap(),
+                            pull_request["number"].as_u64().unwrap()
+                        ))
+                        .send()
+                        .await
+                        .expect("Failed to merge PR");
+
+                    issue_handler
+                    .create_comment(
+                        pull_request["number"].as_u64().unwrap(),
+                        format!(
+                            "Thanks @{} for reviewing. This will now be automatically merged into {} 😊",
+                            review["user"]["login"].as_str().unwrap(),
+                            pull_request["base"]["ref"].as_str().unwrap()
+                        ),
+                    )
                     .await
-                    .expect("Failed to merge PR");
+                    .expect("Failed to create comment");
+                },
+                "changes_requested" => {
+                    issue_handler
+                    .create_comment(
+                        pull_request["number"].as_u64().unwrap(),
+                        format!(
+                            "Thanks @{} for reviewing. @{}, make sure these changes are made and a review is requested 😄",
+                            review["user"]["login"].as_str().unwrap(),
+                            pull_request["user"]["login"].as_str().unwrap()
+                        ),
+                    )
+                    .await
+                    .expect("Failed to create comment");
+                }
+                _ => ()
             }
         }
         _ => (),
