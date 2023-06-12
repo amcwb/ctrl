@@ -11,11 +11,14 @@ use slack_rust::{
         blocks::Block,
     },
     chat::post_message::{post_message, PostMessageRequest, PostMessageResponse},
-    http_client::{SlackWebAPIClient, default_client},
+    http_client::{default_client, SlackWebAPIClient},
     socket::socket_mode::SocketMode,
 };
 
-use crate::config::{get_user_by_github_username, get_user_by_slack_id, set_user_github_username, get_slack_by_github_username, get_user_by_slack_mention};
+use crate::config::{
+    get_slack_by_github_username, get_user_by_github_username, get_user_by_slack_id,
+    get_user_by_slack_mention, set_user_github_username,
+};
 
 pub async fn respond_http_text(
     channel_id: &String,
@@ -137,6 +140,7 @@ pub async fn help<S: SlackWebAPIClient>(socket_mode: &SocketMode<S>, channel_id:
 pub async fn list<S: SlackWebAPIClient>(socket_mode: &SocketMode<S>, channel_id: &String) {
     let manifest = crate::config::read_manifest();
     let projects = manifest.projects.clone();
+    let managers = manifest.managers.clone().join(", ");
 
     let _ = respond_blocks(
         socket_mode,
@@ -145,7 +149,10 @@ pub async fn list<S: SlackWebAPIClient>(socket_mode: &SocketMode<S>, channel_id:
             text: Some(
                 TextBlockObject::builder(
                     TextBlockType::Mrkdwn,
-                    "Here's a list of all projects.".to_string(),
+                    format!(
+                        "Global project managers: {}.\nHere's a list of all projects.",
+                        managers
+                    ),
                 )
                 .build(),
             ),
@@ -370,7 +377,9 @@ pub async fn remove<S: SlackWebAPIClient>(
         return;
     }
 
-    project.project_owners.retain(|x| x != &user.github_username);
+    project
+        .project_owners
+        .retain(|x| x != &user.github_username);
 
     crate::config::write_manifest(&manifest);
 
@@ -468,11 +477,14 @@ pub async fn project<S: SlackWebAPIClient>(
     let mut text = format!("*Project*: `{}`\n", project_name);
 
     if let Some(ref github_repo) = project.github_repo {
-        text.push_str(&format!("*GitHub*: <https://github.com/{}|{}>\n", github_repo, github_repo));
+        text.push_str(&format!(
+            "*GitHub*: <https://github.com/{}|{}>\n",
+            github_repo, github_repo
+        ));
     }
 
     text.push_str("*Managers*:\n");
-    
+
     for manager in &project.project_owners {
         let slack_id = get_slack_by_github_username(&manifest, manager);
         let user = get_user_by_github_username(&manifest, manager);
@@ -483,12 +495,12 @@ pub async fn project<S: SlackWebAPIClient>(
 
         let user = user.unwrap();
 
-        text.push_str(&format!("<@{}> ({})\n", slack_id.unwrap(), user.github_username));
+        text.push_str(&format!(
+            "<@{}> ({})\n",
+            slack_id.unwrap(),
+            user.github_username
+        ));
     }
 
-    let _ = respond_text(
-        socket_mode,
-        channel_id,
-        text,
-    ).await;
+    let _ = respond_text(socket_mode, channel_id, text).await;
 }
