@@ -151,7 +151,7 @@ pub fn write_manifest(manifest: &Manifest) {
     println!("{:?}", manifest);
 
     if env::var("GITHUB_PUSH_DISABLE").unwrap_or("0".to_string()) != "1" {
-        push_changes();
+        push_changes(manifest);
     }
 }
 
@@ -173,7 +173,7 @@ pub fn read_manifest() -> Manifest {
     manifest
 }
 
-pub fn push_changes() {
+pub fn push_changes(manifest: &Manifest) {
     let repo = match Repository::init(".") {
         Ok(repo) => repo,
         Err(e) => panic!("failed to init: {}", e),
