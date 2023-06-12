@@ -8,12 +8,12 @@ extern crate toml;
 use config::read_manifest;
 use rocket::form::Form;
 use rocket::http::Status;
-use rocket::serde::json::{Value, Json};
+use rocket::serde::json::{Json, Value};
 use serde::Serialize;
 
 mod config;
-mod slack;
 mod github;
+mod slack;
 
 #[derive(Serialize, Debug)]
 #[serde(untagged)]
@@ -48,11 +48,6 @@ pub struct Parameters {
 
 #[post("/slack", data = "<input>")]
 async fn slack_command(input: Form<Parameters>) -> Status {
-    // Unwrap inner object.
-    let input_inner = input.into_inner();
-
-    slack::command_handler(input_inner);
-
     // Return data, respond in background
     Status::Accepted
 }
@@ -80,10 +75,11 @@ async fn main() {
     // Initialise Octocrab
     github::setup_octocrab();
 
-    // Initialise Rocket, mount root route and register 404 catcher.
-    let _ = rocket::build()
-        .mount("/", routes![github_command, slack_command])
-        .register("/", catchers![not_found])
-        .launch()
-        .await;
+    rocket::tokio::join!(
+        slack::start(),
+        rocket::build()
+            .mount("/", routes![github_command, slack_command])
+            .register("/", catchers![not_found])
+            .launch()
+    );
 }
