@@ -1,11 +1,12 @@
 use std::{
     collections::HashMap,
+    env,
     fs::File,
     io::{Read, Write},
     path::Path,
 };
 
-use git2::Repository;
+use git2::{Cred, PushOptions, RemoteCallbacks, Repository};
 use serde::{Deserialize, Serialize};
 
 #[derive(Serialize, Deserialize, Debug, Clone)]
@@ -148,7 +149,7 @@ pub fn write_manifest(manifest: &Manifest) {
 
     println!("Wrote manifest.json");
     println!("{:?}", manifest);
-    
+
     push_changes();
 }
 
@@ -177,7 +178,9 @@ pub fn push_changes() {
     };
 
     let mut index = repo.index().unwrap();
-    index.add_all(&["."], git2::IndexAddOption::DEFAULT, None).unwrap();
+    index
+        .add_all(&["."], git2::IndexAddOption::DEFAULT, None)
+        .unwrap();
     index.write().unwrap();
 
     let oid = index.write_tree().unwrap();
@@ -195,8 +198,21 @@ pub fn push_changes() {
     )
     .expect("Commit failed");
 
+    let mut cb = RemoteCallbacks::new();
+    cb.credentials(|_, _, _| {
+        let creds = Cred::userpass_plaintext(
+            env::var("GITHUB_USER").expect("username not set").as_str(),
+            env::var("GITHUB_TOKEN").expect("token not set").as_str(),
+        );
+
+        creds
+    });
+    
     let mut remote = repo.find_remote("origin").expect("Remote failed");
     remote
-        .push(&["refs/heads/master:refs/heads/master"], None)
+        .push(
+            &["refs/heads/master:refs/heads/master"],
+            Some(&mut PushOptions::new().remote_callbacks(cb)),
+        )
         .expect("Push failed");
 }
