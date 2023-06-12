@@ -150,7 +150,8 @@ pub fn write_manifest(manifest: &Manifest) {
     println!("Wrote manifest.json");
     println!("{:?}", manifest);
 
-    if env::var("GITHUB_PUSH_DISABLE").unwrap_or("0".to_string()) != "1" {
+    let disabled = env::var("GITHUB_PUSH_DISABLE").unwrap_or("0".to_string());
+    if disabled != "1" {
         push_changes(manifest);
     }
 }
