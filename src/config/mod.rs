@@ -5,6 +5,7 @@ use std::{
     path::Path,
 };
 
+use git2::Repository;
 use serde::{Deserialize, Serialize};
 
 #[derive(Serialize, Deserialize, Debug, Clone)]
@@ -147,6 +148,8 @@ pub fn write_manifest(manifest: &Manifest) {
 
     println!("Wrote manifest.json");
     println!("{:?}", manifest);
+    
+    push_changes();
 }
 
 pub fn read_manifest() -> Manifest {
@@ -165,4 +168,35 @@ pub fn read_manifest() -> Manifest {
     println!("Read manifest.json");
     println!("{:?}", manifest);
     manifest
+}
+
+pub fn push_changes() {
+    let repo = match Repository::init(".") {
+        Ok(repo) => repo,
+        Err(e) => panic!("failed to init: {}", e),
+    };
+
+    let mut index = repo.index().unwrap();
+    index.add_all(&["."], git2::IndexAddOption::DEFAULT, None).unwrap();
+    index.write().unwrap();
+
+    let oid = index.write_tree().unwrap();
+    let signature = repo.signature().unwrap();
+    let head = repo.head().unwrap();
+    let parent_commit = head.peel_to_commit().unwrap();
+    let tree = repo.find_tree(oid).unwrap();
+    repo.commit(
+        Some("HEAD"),
+        &signature,
+        &signature,
+        "Updated config",
+        &tree,
+        &[&parent_commit],
+    )
+    .unwrap();
+
+    let mut remote = repo.find_remote("origin").unwrap();
+    remote
+        .push(&["refs/heads/master:refs/heads/master"], None)
+        .unwrap();
 }
