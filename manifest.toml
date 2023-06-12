@@ -1,0 +1,10 @@
+managers = ["amcwb", "lukexf", "joemethven", "samsvk"]
+configured_project = "amcwb/ctrl"
+
+[projects.ctrl]
+slack_channel = "C05BRFJAJ6A"
+github_repo = "amcwb/test-repo-ctrl"
+project_owners = ["amcwb"]
+
+[profiles.U02MB7X07LK]
+github_username = "amcwb"
