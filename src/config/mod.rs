@@ -193,10 +193,10 @@ pub fn push_changes() {
         &tree,
         &[&parent_commit],
     )
-    .unwrap();
+    .expect("Commit failed");
 
-    let mut remote = repo.find_remote("origin").unwrap();
+    let mut remote = repo.find_remote("origin").expect("Remote failed");
     remote
         .push(&["refs/heads/master:refs/heads/master"], None)
-        .unwrap();
+        .expect("Push failed");
 }
