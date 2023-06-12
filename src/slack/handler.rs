@@ -245,14 +245,14 @@ pub async fn create<S: SlackWebAPIClient>(
         },
     );
 
-    crate::config::write_manifest(&manifest);
-
     let _ = respond_text(
         socket_mode,
         channel_id,
         format!("Project `{}` created.", project_name),
     )
     .await;
+
+    crate::config::write_manifest(&manifest);
 }
 
 pub async fn delete<S: SlackWebAPIClient>(
@@ -273,14 +273,14 @@ pub async fn delete<S: SlackWebAPIClient>(
 
     manifest.projects.remove(project_name);
 
-    crate::config::write_manifest(&manifest);
-
     let _ = respond_text(
         socket_mode,
         channel_id,
         format!("Project `{}` deleted.", project_name),
     )
     .await;
+
+    crate::config::write_manifest(&manifest);
 }
 
 pub async fn add<S: SlackWebAPIClient>(
@@ -326,8 +326,6 @@ pub async fn add<S: SlackWebAPIClient>(
 
     project.project_owners.push(user.github_username.clone());
 
-    crate::config::write_manifest(&manifest);
-
     let _ = respond_text(
         socket_mode,
         channel_id,
@@ -337,6 +335,8 @@ pub async fn add<S: SlackWebAPIClient>(
         ),
     )
     .await;
+
+    crate::config::write_manifest(&manifest);
 }
 
 pub async fn remove<S: SlackWebAPIClient>(
@@ -381,8 +381,6 @@ pub async fn remove<S: SlackWebAPIClient>(
         .project_owners
         .retain(|x| x != &user.github_username);
 
-    crate::config::write_manifest(&manifest);
-
     let _ = respond_text(
         socket_mode,
         channel_id,
@@ -392,6 +390,8 @@ pub async fn remove<S: SlackWebAPIClient>(
         ),
     )
     .await;
+
+    crate::config::write_manifest(&manifest);
 }
 
 pub async fn github<S: SlackWebAPIClient>(
@@ -441,14 +441,14 @@ pub async fn me<S: SlackWebAPIClient>(
 
             set_user_github_username(&mut manifest, user_id, value);
 
-            crate::config::write_manifest(&manifest);
-
             let _ = respond_text(
                 socket_mode,
                 channel_id,
                 format!("GitHub username set to `{}`.", value),
             )
             .await;
+
+            crate::config::write_manifest(&manifest);
         }
         _ => {
             command_not_found(socket_mode, channel_id).await;

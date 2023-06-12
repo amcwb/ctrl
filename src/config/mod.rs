@@ -150,7 +150,9 @@ pub fn write_manifest(manifest: &Manifest) {
     println!("Wrote manifest.json");
     println!("{:?}", manifest);
 
-    push_changes();
+    if env::var("GITHUB_PUSH_DISABLE").unwrap_or("0".to_string()) != "1" {
+        push_changes();
+    }
 }
 
 pub fn read_manifest() -> Manifest {
@@ -199,7 +201,12 @@ pub fn push_changes() {
     .expect("Commit failed");
 
     let mut cb = RemoteCallbacks::new();
-    cb.credentials(|_, _, _| {
+    cb.credentials(|_, _, _cred| {
+        println!("Cred callback {:?}", _cred);
+        if !_cred.contains(CredentialType::USER_PASS_PLAINTEXT) {
+            return Err(git2::Error::from_str("Only username/password supported"));
+        }
+
         let creds = Cred::userpass_plaintext(
             env::var("GITHUB_USER").expect("username not set").as_str(),
             env::var("GITHUB_TOKEN").expect("token not set").as_str(),
